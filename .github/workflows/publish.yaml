@@ -1,0 +1,50 @@
+---
+name: Publish container
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "*"
+    branches:
+      - main
+    paths:
+      - DOCKERFILE
+      - config/**
+      - scripts/**
+
+jobs:
+  build-push:
+    if: github.repository == 'arthurgeek/vaultwarden-fly-template'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4
+
+      - name: Login to ghcr
+        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Container meta
+        id: meta
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw, value=latest, enable={{is_default_branch}}
+            type=semver, pattern={{version}}
+            type=ref, event=branch
+            type=ref, event=tag
+            type=ref, event=pr
+
+      - name: Build and push to ghcr
+        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
